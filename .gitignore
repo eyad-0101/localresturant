@@ -1,0 +1,48 @@
+```
+# Build artifacts
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+*.userprefs
+
+# Dependencies
+packages/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+TestResults/
+
+# NuGet
+*.nupkg
+.nuget/
+
+# Visual Studio
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+```

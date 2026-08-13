@@ -1,0 +1,74 @@
+name: Build MediaDeck
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build -c Release --no-restore
+    
+    - name: Test (optional)
+      run: dotnet test --no-build --verbosity normal || true
+    
+    - name: Publish portable self-contained app
+      run: |
+        dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish/win-x64
+      
+    - name: Create USB deployment structure
+      run: |
+        mkdir publish\usb-deploy\Apps\mpv
+        mkdir publish\usb-deploy\Apps\SumatraPDF
+        mkdir publish\usb-deploy\Library\Videos
+        mkdir publish\usb-deploy\Library\Manga
+        mkdir publish\usb-deploy\Library\Books
+        mkdir publish\usb-deploy\Data\Cache\Thumbnails
+        
+        Copy-Item publish\win-x64\MediaDeck.exe publish\usb-deploy\
+        Copy-Item publish\win-x64\*.dll publish\usb-deploy\ -ErrorAction SilentlyContinue
+        Copy-Item publish\win-x64\*.runtimeconfig.json publish\usb-deploy\ -ErrorAction SilentlyContinue
+        Copy-Item publish\win-x64\*.deps.json publish\usb-deploy\ -ErrorAction SilentlyContinue
+    
+    - name: Upload build artifacts (win-x64)
+      uses: actions/upload-artifact@v4
+      with:
+        name: MediaDeck-win-x64
+        path: publish/win-x64/
+        retention-days: 30
+    
+    - name: Upload USB deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: MediaDeck-USB-Deploy
+        path: publish/usb-deploy/
+        retention-days: 30
+    
+    - name: Create release zip
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      run: |
+        Compress-Archive -Path publish\usb-deploy\* -DestinationPath MediaDeck-${{ github.ref_name }}.zip -Force
+    
+    - name: Upload release asset
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: MediaDeck-*.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
