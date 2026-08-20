@@ -1,180 +1,124 @@
 import { useState } from 'react';
-import clsx from 'clsx';
+import { useGeolocation } from '../hooks/useGeolocation';
 
-const CUISINE_TYPES = [
-  'Italian', 'Mexican', 'Indian', 'Chinese', 'Thai', 
-  'Mediterranean', 'American', 'Other'
-];
-
-const DIETARY_OPTIONS = [
-  'vegan', 'vegetarian', 'halal', 'kosher', 
-  'gluten-free', 'keto', 'dairy-free'
-];
+const CUISINE_TYPES = ['Italian', 'Mexican', 'Indian', 'Chinese', 'Thai', 'Mediterranean', 'American', 'Other'];
+const DIETARY_OPTIONS = ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'keto', 'dairy-free'];
 
 const MealFilters = ({ onFilterChange, userLocation }) => {
-  const [filters, setFilters] = useState({
-    cuisineType: '',
-    dietary: '',
-    minPrice: '',
-    maxPrice: '',
-    availableNow: false,
-    radius: 5,
-  });
-  const [isOpen, setIsOpen] = useState(false);
+  const [cuisineType, setCuisineType] = useState('');
+  const [dietary, setDietary] = useState('');
+  const [priceRange, setPriceRange] = useState('');
+  const [availableNow, setAvailableNow] = useState(false);
 
-  const handleFilterChange = (key, value) => {
-    const newFilters = { ...filters, [key]: value };
-    setFilters(newFilters);
-    onFilterChange?.(newFilters);
+  const handleChange = (newValues) => {
+    const filters = {
+      ...newValues,
+      ...((priceRange === 'low') && { minPrice: 0, maxPrice: 8 }),
+      ...((priceRange === 'mid') && { minPrice: 8, maxPrice: 15 }),
+      ...((priceRange === 'high') && { minPrice: 15 }),
+      ...(availableNow && { availableNow: true }),
+    };
+    onFilterChange(filters);
   };
 
   return (
-    <div className="bg-white shadow-lg rounded-lg p-4 space-y-4">
-      {/* Toggle button for mobile */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden w-full flex items-center justify-between p-2 bg-gray-100 rounded-lg"
-      >
-        <span className="font-semibold">Filters</span>
-        <svg
-          className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {/* Filter content */}
-      <div className={clsx('space-y-4', isOpen ? 'block' : 'hidden lg:block')}>
-        {/* Radius Slider */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Search Radius: {filters.radius} km
-          </label>
+    <div className="bg-white rounded-lg p-4 space-y-4 shadow-sm">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Search radius</label>
+        <div className="flex items-center gap-3">
           <input
             type="range"
             min="1"
             max="20"
-            value={filters.radius}
-            onChange={(e) => handleFilterChange('radius', Number(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-500"
+            defaultValue={5}
+            onChange={(e) => handleChange({ radius: e.target.value })}
+            className="flex-1 accent-orange-500"
           />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>1 km</span>
-            <span>20 km</span>
-          </div>
+          <span className="text-sm text-gray-600 w-16">5 km</span>
         </div>
-
-        {/* Cuisine Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Cuisine Type
-          </label>
-          <select
-            value={filters.cuisineType}
-            onChange={(e) => handleFilterChange('cuisineType', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="">All Cuisines</option>
-            {CUISINE_TYPES.map((cuisine) => (
-              <option key={cuisine} value={cuisine}>
-                {cuisine}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Dietary Options */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Dietary Requirements
-          </label>
-          <select
-            value={filters.dietary}
-            onChange={(e) => handleFilterChange('dietary', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="">No Restrictions</option>
-            {DIETARY_OPTIONS.map((option) => (
-              <option key={option} value={option} className="capitalize">
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Price Range */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Min Price
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={filters.minPrice}
-              onChange={(e) => handleFilterChange('minPrice', e.target.value)}
-              placeholder="$0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Max Price
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={filters.maxPrice}
-              onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
-              placeholder="$50"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        {/* Available Now Toggle */}
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-700">
-            Available Now
-          </label>
-          <button
-            onClick={() => handleFilterChange('availableNow', !filters.availableNow)}
-            className={clsx(
-              'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-              filters.availableNow ? 'bg-primary-500' : 'bg-gray-200'
-            )}
-          >
-            <span
-              className={clsx(
-                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                filters.availableNow ? 'translate-x-6' : 'translate-x-1'
-              )}
-            />
-          </button>
-        </div>
-
-        {/* Reset Filters */}
-        <button
-          onClick={() => {
-            const defaultFilters = {
-              cuisineType: '',
-              dietary: '',
-              minPrice: '',
-              maxPrice: '',
-              availableNow: false,
-              radius: 5,
-            };
-            setFilters(defaultFilters);
-            onFilterChange?.(defaultFilters);
-          }}
-          className="w-full py-2 px-4 text-sm text-primary-500 hover:text-primary-600 font-medium"
-        >
-          Reset All Filters
-        </button>
       </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Cuisine type</label>
+        <select
+          value={cuisineType}
+          onChange={(e) => {
+            setCuisineType(e.target.value);
+            handleChange({ cuisineType: e.target.value || undefined });
+          }}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="">All cuisines</option>
+          {CUISINE_TYPES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Dietary option</label>
+        <select
+          value={dietary}
+          onChange={(e) => {
+            setDietary(e.target.value);
+            handleChange({ dietary: e.target.value || undefined });
+          }}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="">All dietary</option>
+          {DIETARY_OPTIONS.map((d) => (
+            <option key={d} value={d} className="capitalize">{d}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Price range</label>
+        <div className="flex gap-2">
+          {['low', 'mid', 'high'].map((range) => (
+            <button
+              key={range}
+              onClick={() => {
+                setPriceRange(priceRange === range ? '' : range);
+                handleChange({ minPrice: undefined, maxPrice: undefined });
+              }}
+              className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                priceRange === range
+                  ? 'bg-primary-500 text-white border-primary-500'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-primary-500'
+              }`}
+            >
+              {range === 'low' ? 'Under $8' : range === 'mid' ? '$8–$15' : '$15+'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={availableNow}
+          onChange={(e) => {
+            setAvailableNow(e.target.checked);
+            handleChange({ availableNow: undefined });
+          }}
+          className="w-4 h-4 text-primary-500 rounded"
+        />
+        Available now only
+      </label>
+
+      <button
+        onClick={() => {
+          setCuisineType('');
+          setDietary('');
+          setPriceRange('');
+          setAvailableNow(false);
+          onFilterChange({});
+        }}
+        className="w-full text-sm text-primary-500 hover:underline"
+      >
+        Clear filters
+      </button>
     </div>
   );
 };

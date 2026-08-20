@@ -13,7 +13,7 @@ const generateToken = (id) => {
 // @access  Public
 export const register = async (req, res) => {
   try {
-    const { name, email, password, phone, role } = req.body;
+    const { name, email, password, phone, role, location } = req.body;
 
     // Check if user exists
     const userExists = await User.findOne({ email });
@@ -22,12 +22,16 @@ export const register = async (req, res) => {
     }
 
     // Create user
+    // Location is required by the User model. If the client does not supply
+    // one yet, default to a neutral centroid (NYC) — the profile page asks
+    // the user to set their real neighborhood afterwards.
     const user = await User.create({
       name,
       email,
       password,
       phone,
       role: role || 'buyer',
+      location: location || { type: 'Point', coordinates: [-74.006, 40.7128] },
     });
 
     // Generate token

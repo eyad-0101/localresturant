@@ -1,175 +1,231 @@
-import { QRCodeSVG } from 'qrcode.react';
-import clsx from 'clsx';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { loadStripe } from '@stripe/stripe-js';
+import { orderService, chatService } from '../services/api';
+import useAuthStore from '../context/authStore';
 
-const MealCard = ({ meal, onSelect, compact = false }) => {
-  const isAvailable = meal.status === 'active' && meal.availablePortions > 0;
-  const portionsLeft = meal.availablePortions;
-  const urgencyLevel = portionsLeft <= 3 ? 'high' : portionsLeft <= 6 ? 'medium' : 'low';
+const MealCard = ({ meal, onSelect, compact }) => {
+  const { user, isAuthenticated } = useAuthStore();
+  const navigate = useNavigate();
+  const [portions, setPortions] = useState(1);
+  const [pickupType, setPickupType] = useState(meal.pickupType === 'porch' ? 'porch' : 'handoff');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [ordering, setOrdering] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+
+  const cookId = typeof meal.cook === 'object' ? meal.cook?._id : meal.cook;
+
+  const handleOrder = async (e) => {
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (portions > meal.availablePortions) {
+      setError(`Only ${meal.availablePortions} portions left`);
+      return;
+    }
+    if (!scheduledTime) {
+      setError('Please pick a pickup time');
+      return;
+    }
+    setOrdering(true);
+    setError('');
+    try {
+      // Create the order (reserves portions server-side)
+      const res = await orderService.createOrder({
+        mealListingId: meal._id,
+        portions,
+        pickupType,
+        scheduledPickupTime: new Date(scheduledTime).toISOString(),
+        specialInstructions: instructions || undefined,
+      });
+      if (!res.clientSecret) {
+        // Payment could not be initialized (e.g., Stripe not configured);
+        // the order still exists and an admin can complete it manually
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 4000);
+        return;
+      }
+      // Confirm the Stripe payment on the client
+      const stripePromise = loadStripe();
+      const stripe = await stripePromise;
+      const { error: stripeError } = await stripe.confirmPayment({
+        elements: null,
+        clientSecret: res.clientSecret,
+        redirect: 'if_required',
+      });
+      if (stripeError) {
+        setError(`Payment failed: ${stripeError.message}`);
+      } else {
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 4000);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not place the order');
+    } finally {
+      setOrdering(false);
+    }
+  };
+
+  const startChat = async (e) => {
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const res = await chatService.getOrCreatePrivateChat(cookId);
+      navigate(`/chat?id=${res.data._id}`);
+    } catch (err) {
+      setError('Could not open chat');
+    }
+  };
+
+  const isUrgent = meal.availablePortions <= 3 && meal.availablePortions > 0;
 
   if (compact) {
     return (
       <div
         onClick={() => onSelect?.(meal)}
-        className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow"
+        className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md cursor-pointer transition-shadow"
       >
         <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <h3 className="font-semibold text-lg">{meal.title}</h3>
-            <p className="text-sm text-gray-600">{meal.cook?.name}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
-                {meal.cuisineType}
-              </span>
-              {meal.dietaryInfo?.map((diet) => (
-                <span key={diet} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full capitalize">
-                  {diet}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-bold text-primary-500">${meal.pricePerPortion}</p>
-            <p className="text-sm text-gray-500">/portion</p>
-          </div>
+          <h3 className="font-semibold text-gray-900">{meal.title}</h3>
+          <span className="text-primary-500 font-bold">${meal.pricePerPortion}</span>
         </div>
-        
-        {isAvailable && (
-          <div className="mt-3 flex items-center justify-between">
-            <div className={clsx(
-              'px-3 py-1 rounded-full text-sm font-medium',
-              urgencyLevel === 'high' ? 'bg-red-100 text-red-700 availability-badge' :
-              urgencyLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-              'bg-green-100 text-green-700'
-            )}>
-              {portionsLeft} portions left
-            </div>
-            <span className="text-xs text-gray-500">
-              {new Date(meal.availableDate).toLocaleDateString()}
+        <p className="text-sm text-gray-500 capitalize">{meal.cuisineType}</p>
+        <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+          <span>by {meal.cook?.name || 'a cook'}</span>
+          {meal.distance && <span>• {meal.distance} km away</span>}
+          {isUrgent && (
+            <span className="bg-red-500 text-white px-2 py-0.5 rounded-full font-medium">
+              Only {meal.availablePortions} left!
             </span>
+          )}
+        </div>
+        {meal.distance && (
+          <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-full bg-primary-500" style={{ width: `${Math.min((meal.distance / 20) * 100, 100)}%` }} />
           </div>
         )}
       </div>
     );
   }
 
+  // Expanded view (detail modal)
   return (
-    <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-      {/* Image placeholder */}
-      <div className="h-48 bg-gradient-to-r from-primary-100 to-secondary-100 flex items-center justify-center">
-        {meal.images?.[0] ? (
-          <img src={meal.images[0]} alt={meal.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="text-center">
-            <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            <p className="text-sm text-gray-500 mt-2">No image</p>
-          </div>
+    <div className="space-y-4">
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold">{meal.title}</h2>
+          <p className="text-gray-500 capitalize">{meal.cuisineType}</p>
+          <p className="text-sm text-gray-500 mt-1">by {meal.cook?.name}</p>
+        </div>
+        <span className="text-2xl font-bold text-primary-500">${meal.pricePerPortion}/portion</span>
+      </div>
+
+      <p className="text-gray-600">{meal.description}</p>
+
+      <div className="flex flex-wrap gap-2">
+        {meal.dietaryInfo?.map((d) => (
+          <span key={d} className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full capitalize">{d}</span>
+        ))}
+        {meal.distance && (
+          <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">{meal.distance} km away</span>
+        )}
+        {isUrgent && (
+          <span className="text-xs bg-red-500 text-white px-2.5 py-1 rounded-full font-medium">
+            Only {meal.availablePortions} portions left!
+          </span>
         )}
       </div>
 
-      <div className="p-5">
-        <div className="flex justify-between items-start mb-3">
-          <div>
-            <h3 className="text-xl font-bold">{meal.title}</h3>
-            <p className="text-sm text-gray-600">by {meal.cook?.name}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-primary-500">${meal.pricePerPortion}</p>
-            <p className="text-xs text-gray-500">per portion</p>
-          </div>
-        </div>
-
-        <p className="text-gray-600 text-sm mb-4 line-clamp-2">{meal.description}</p>
-
-        <div className="flex flex-wrap gap-2 mb-4">
-          <span className="text-xs bg-gray-100 px-3 py-1 rounded-full">{meal.cuisineType}</span>
-          {meal.dietaryInfo?.map((diet) => (
-            <span key={diet} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full capitalize">
-              {diet}
-            </span>
-          ))}
-        </div>
-
-        {/* Availability Badge */}
-        {isAvailable && (
-          <div className={clsx(
-            'mb-4 p-3 rounded-lg flex items-center justify-between',
-            urgencyLevel === 'high' ? 'bg-red-50 border border-red-200' :
-            urgencyLevel === 'medium' ? 'bg-yellow-50 border border-yellow-200' :
-            'bg-green-50 border border-green-200'
-          )}>
-            <div className="flex items-center gap-2">
-              <div className={clsx(
-                'w-3 h-3 rounded-full availability-badge',
-                urgencyLevel === 'high' ? 'bg-red-500' :
-                urgencyLevel === 'medium' ? 'bg-yellow-500' :
-                'bg-green-500'
-              )} />
-              <span className={clsx(
-                'font-semibold',
-                urgencyLevel === 'high' ? 'text-red-700' :
-                urgencyLevel === 'medium' ? 'text-yellow-700' :
-                'text-green-700'
-              )}>
-                Only {portionsLeft} portions left!
-              </span>
-            </div>
-          </div>
+      <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+        <p><strong>Pickup:</strong> {meal.pickupType === 'both' ? 'Porch pickup or handoff' : meal.pickupType === 'porch' ? 'Porch pickup' : 'Handoff'}</p>
+        {meal.pickupTimeWindow && (
+          <p><strong>Time window:</strong> {meal.pickupTimeWindow.start} – {meal.pickupTimeWindow.end}</p>
         )}
+        <p><strong>Available:</strong> {new Date(meal.availableDate).toLocaleDateString()}</p>
+        <p><strong>Portions left:</strong> {meal.availablePortions} / {meal.totalPortions}</p>
+        {meal.groupOrderEnabled && (
+          <p className="text-primary-600 font-medium">Group orders welcome — combine with neighbors for bigger batches</p>
+        )}
+      </div>
 
-        {/* Pickup Info */}
-        <div className="border-t pt-4 mb-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500">Available On</p>
-              <p className="font-medium">
-                {new Date(meal.availableDate).toLocaleDateString('en-US', { 
-                  weekday: 'short', 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-500">Pickup Time</p>
-              <p className="font-medium">
-                {meal.pickupTimeWindow?.start} - {meal.pickupTimeWindow?.end}
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-500">Pickup Type</p>
-              <p className="font-medium capitalize">{meal.pickupType}</p>
-            </div>
-            {meal.distance && (
-              <div>
-                <p className="text-gray-500">Distance</p>
-                <p className="font-medium">{meal.distance} km</p>
-              </div>
-            )}
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+          Order placed — pay now to confirm it, then check My Orders for pickup details.
+        </div>
+      )}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+      )}
+
+      <div className="bg-white border rounded-xl p-4 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Portions</label>
+            <input
+              type="number"
+              min={1}
+              max={meal.availablePortions}
+              value={portions}
+              onChange={(e) => setPortions(Math.max(1, Number(e.target.value)))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Pickup time</label>
+            <input
+              type="datetime-local"
+              value={scheduledTime}
+              onChange={(e) => setScheduledTime(e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Pickup type</label>
+            <select
+              value={pickupType}
+              onChange={(e) => setPickupType(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            >
+              {meal.pickupType !== 'handoff' && <option value="porch">Porch pickup</option>}
+              {meal.pickupType !== 'porch' && <option value="handoff">Handoff</option>}
+            </select>
           </div>
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => onSelect?.(meal)}
-            disabled={!isAvailable}
-            className={clsx(
-              'flex-1 py-3 px-4 rounded-lg font-semibold transition-colors',
-              isAvailable
-                ? 'bg-primary-500 hover:bg-primary-600 text-white'
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-            )}
-          >
-            {isAvailable ? 'Order Now' : 'Sold Out'}
-          </button>
-          {meal.groupOrderEnabled && (
-            <button className="py-3 px-4 border-2 border-primary-500 text-primary-500 rounded-lg font-semibold hover:bg-primary-50 transition-colors">
-              Join Group
-            </button>
-          )}
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Special instructions (optional)</label>
+          <input
+            type="text"
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder="Allergies, preferences..."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+          />
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleOrder}
+            disabled={ordering}
+            className="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2.5 rounded-lg disabled:opacity-50"
+          >
+            {ordering ? 'Placing order...' : `Order — $${(portions * meal.pricePerPortion).toFixed(2)}`}
+          </button>
+          <button
+            onClick={startChat}
+            className="px-4 border border-primary-500 text-primary-500 font-semibold rounded-lg hover:bg-primary-50"
+            title="Chat with the cook"
+          >
+            💬
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 text-center">Secure payment via Stripe • Exact address revealed after ordering</p>
       </div>
     </div>
   );

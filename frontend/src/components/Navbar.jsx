@@ -1,119 +1,100 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../context/authStore';
-import clsx from 'clsx';
+import { chatService } from '../services/api';
 
 const Navbar = () => {
+  const { user, isAuthenticated, logout } = useAuthStore();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, user, logout } = useAuthStore();
+
+  const isCook = user?.cookProfile?.isCook || user?.role === 'cook';
+  const isAdmin = user?.role === 'admin';
 
   const handleLogout = () => {
     logout();
+    chatService.socket.disconnect();
     navigate('/');
   };
 
+  const linkClass = (path) =>
+    `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+      location.pathname === path
+        ? 'bg-primary-100 text-primary-600'
+        : 'text-gray-600 hover:text-primary-500 hover:bg-gray-50'
+    }`;
+
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+    <nav className="bg-white shadow-sm sticky top-0 z-[1000]">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center">
-            <div className="flex-shrink-0 flex items-center">
-              <svg className="h-8 w-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span className="ml-2 text-xl font-bold text-gray-900">HomeCook Connect</span>
-            </div>
+          <Link to="/" className="flex items-center gap-2">
+            <span className="text-2xl">🍳</span>
+            <span className="text-xl font-bold text-gray-900">
+              HomeCook <span className="text-primary-500">Connect</span>
+            </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-4">
-            <Link
-              to="/explore"
-              className="text-gray-700 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
-              Explore Meals
+          {/* Links */}
+          <div className="flex items-center gap-1">
+            <Link to="/explore" className={linkClass('/explore')}>
+              Explore
             </Link>
-            <Link
-              to="/requests"
-              className="text-gray-700 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
-              Post Craving
-            </Link>
-            
-            {isAuthenticated ? (
+            {isAuthenticated && (
               <>
-                {user?.cookProfile?.isCook && (
-                  <Link
-                    to="/dashboard"
-                    className="text-gray-700 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
+                <Link to="/chat" className={linkClass('/chat')}>
+                  Messages
+                </Link>
+                <Link to="/requests" className={linkClass('/requests')}>
+                  Cravings
+                </Link>
+                <Link to="/orders" className={linkClass('/orders')}>
+                  Orders
+                </Link>
+                {isCook && (
+                  <Link to="/dashboard" className={linkClass('/dashboard')}>
                     Dashboard
                   </Link>
                 )}
-                <Link
-                  to="/orders"
-                  className="text-gray-700 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                >
-                  My Orders
-                </Link>
-                <div className="relative group">
-                  <button className="flex items-center space-x-2 text-gray-700 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium">
-                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-primary-500 font-semibold">
-                        {user?.name?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  </button>
-                  {/* Dropdown */}
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block">
-                    <Link
-                      to="/profile"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      Profile
-                    </Link>
-                    {user?.cookProfile?.isCook && (
-                      <Link
-                        to="/dashboard/meals"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        My Listings
-                      </Link>
-                    )}
-                    <button
-                      onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                    >
-                      Logout
-                    </button>
+                {isAdmin && (
+                  <Link to="/admin" className={linkClass('/admin')}>
+                    Admin
+                  </Link>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Auth buttons */}
+          <div className="flex items-center gap-2">
+            {isAuthenticated ? (
+              <>
+                <Link to="/profile" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
+                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold text-sm">
+                    {user?.name?.charAt(0).toUpperCase()}
                   </div>
-                </div>
+                  <span className="text-sm font-medium text-gray-700 hidden sm:inline">{user?.name?.split(' ')[0]}</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-2 text-sm text-gray-500 hover:text-red-600 rounded-lg"
+                >
+                  Logout
+                </button>
               </>
             ) : (
               <>
-                <Link
-                  to="/login"
-                  className="text-gray-700 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                >
+                <Link to="/login" className="px-4 py-2 text-sm text-gray-600 hover:text-primary-500 font-medium">
                   Login
                 </Link>
                 <Link
                   to="/register"
-                  className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
                   Sign Up
                 </Link>
               </>
             )}
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
-            <button className="text-gray-700 hover:text-primary-500">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>

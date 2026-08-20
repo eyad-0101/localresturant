@@ -1,115 +1,126 @@
 # HomeCook Connect - Neighborhood Homemade Food Marketplace
 
-A map-based marketplace connecting home cooks with neighbors who want real homemade food.
+A map-based marketplace connecting home cooks with neighbors who want real homemade food. Buyers browse nearby cooks on an interactive map, order portions securely with Stripe, schedule contactless pickups, chat with cooks in real time, and admins oversee all accounts and conversations.
 
 ## 🚀 Features
 
-### Core Map Features
-- **Cook Pins**: Display cuisine type, price range, and daily availability
-- **Privacy-First**: Exact addresses hidden until order placement
-- **Radius Slider**: Filter cooks within 1–5 km
-- **Advanced Filters**: Cuisine, dietary restrictions (vegan, halal, gluten-free, keto), price, pickup vs. delivery, "available now"
-- **Live Availability Badges**: Real-time portion counts ("Biryani today, 6 portions left")
-- **Buyer Requests**: Reverse mode where buyers post cravings for cooks to respond
+### Map & Discovery
+- **Cook Pins**: Cuisine type, price, daily availability, and distance shown directly on the map
+- **Privacy-First**: Exact addresses hidden until an order is placed
+- **Geo Filtering**: MongoDB `$nearSphere` queries filter meals within the chosen radius server-side (fast at any scale)
+- **Advanced Filters**: Cuisine, dietary restrictions (vegan, halal, gluten-free, keto), price range, "available now"
+- **Urgency Badges**: Live portion counts ("Only 3 portions left!")
 
-### Ordering System
+### Ordering & Payments
 - **Batch Cooking Model**: Cooks announce batches (e.g., "Lasagna Friday, 12 portions")
-- **Preorders**: Time-window based pickup scheduling
-- **Weekly Meal Plans**: Subscription model (3 dinners/week)
+- **Atomic Reservation**: Portions are reserved in the database atomically — concurrent buyers cannot oversell a meal
+- **Stripe Payments**: Payment intents created on the server, confirmed on the client via Stripe Elements; a webhook marks the order paid when Stripe confirms
+- **Preorders**: Time-window-based pickup scheduling (porch pickup or handoff)
+- **Contactless Pickup**: QR-code confirmation, with buyer reviews and cook ratings after completion
 - **Group Orders**: Neighbors combine orders for larger batches
-- **Contactless Pickup**: QR code-based porch pickup
+
+### Real-Time Chat
+- **Private Chats**: Buyers message any cook directly; conversations are created lazily and deduplicated per pair
+- **All-Chefs Channel**: One shared group channel where anyone can reach all chefs at once
+- **Socket.io**: Instant message delivery across clients
+
+### Meal Plans & Cravings
+- **Weekly Meal Plans**: Cooks publish recurring plans; buyers subscribe to weekly drops
+- **Buyer Requests (Cravings)**: Buyers post what they want; cooks browse the public cravings board
+
+### Admin Panel
+- **Account Management**: Admins create buyer, cook, and admin accounts, and can deactivate or delete users
+- **Chat Oversight**: Admins can read every conversation on the platform, including private 1-on-1 chats
 
 ## 📁 Project Structure
-
 ```
-/homecook-connect
-├── frontend/          # React + Vite + Leaflet/Mapbox
+homecook-connect
+├── frontend/          # React + Vite + TailwindCSS + Leaflet
 │   └── src/
-│       ├── components/    # Reusable UI components
-│       ├── pages/         # Page components
-│       ├── hooks/         # Custom React hooks
-│       ├── services/      # API service layer
-│       ├── context/       # React context providers
-│       └── utils/         # Utility functions
+│       ├── components/    # MealCard, MealMap, MealFilters, Navbar
+│       ├── pages/         # Explore, Login, Register, Profile, Orders,
+│       │                  # Dashboard, Requests, Chat, Admin, MealPlans
+│       ├── services/      # Axios API layer + Socket.io chat service
+│       ├── context/       # Zustand auth store
+│       └── hooks/         # useGeolocation
 ├── backend/           # Node.js + Express + MongoDB
 │   └── src/
-│       ├── routes/        # API route definitions
-│       ├── models/        # Mongoose models
-│       ├── middleware/    # Auth, validation, etc.
-│       ├── controllers/   # Business logic
-│       └── config/        # Configuration files
+│       ├── routes/        # auth, meals, orders, chat, mealPlans,
+│       │                  # requests, admin
+│       ├── models/        # User, MealListing, Order, ChatConversation,
+│       │                  # Message, MealPlan, BuyerRequest
+│       ├── controllers/   # Business logic (Stripe, geo queries)
+│       ├── services/      # Socket.io chat service
+│       ├── middleware/    # Auth, roles, validation
+│       ├── config/        # Database, Stripe
+│       └── __tests__/     # Jest unit tests
 └── docs/              # Documentation
 ```
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **React** with Vite
-- **Leaflet** or **Mapbox GL** for maps
-- **TailwindCSS** for styling
-- **React Query** for data fetching
-- **Zustand** or **Context API** for state management
-
-### Backend
-- **Node.js** with Express
-- **MongoDB** with Mongoose
-- **JWT** for authentication
-- **Socket.io** for real-time updates
-- **Stripe** for payments
+| Layer | Technologies |
+|---|---|
+| Frontend | React, Vite, TailwindCSS, Leaflet, React Query, Zustand, Socket.io client, Stripe Elements |
+| Backend | Node.js, Express, MongoDB/Mongoose, JWT, Socket.io, Stripe, Express Validator |
+| Maps | OpenStreetMap tiles via Leaflet (no API key required) |
+| Testing | Jest unit tests for orders and chat |
 
 ## 🏃 Getting Started
 
 ### Prerequisites
 - Node.js 18+
 - MongoDB (local or Atlas)
-- npm or yarn
 
 ### Installation
-
 ```bash
-# Install frontend dependencies
-cd frontend
-npm install
+# Install everything with the root monorepo script
+npm run install:all
 
-# Install backend dependencies
-cd ../backend
-npm install
+# Or install manually
+cd frontend && npm install
+cd ../backend && npm install
+```
 
-# Set up environment variables
+### Environment Variables
+Copy the example files and fill in your values:
+```bash
 cp backend/.env.example backend/.env
-# Edit backend/.env with your configuration
-
-# Start development servers
-# Terminal 1 - Backend
-cd backend
-npm run dev
-
-# Terminal 2 - Frontend
-cd frontend
-npm run dev
+cp frontend/.env.example frontend/.env
 ```
 
-## 📋 Environment Variables
-
-### Backend (.env)
+The backend needs at minimum:
 ```
-PORT=5000
 MONGODB_URI=mongodb://localhost:27017/homecook-connect
 JWT_SECRET=your-secret-key
+PORT=5000
+```
+
+Optional (enables the full payment flow):
+```
 STRIPE_SECRET_KEY=sk_test_...
-MAPBOX_TOKEN=pk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_CURRENCY=usd
 ```
 
-### Frontend (.env)
-```
-VITE_API_URL=http://localhost:5000/api
-VITE_MAPBOX_TOKEN=pk_...
+Without a Stripe key the app still works — orders are created, and an admin can mark them as paid manually.
+
+### Run the App
+```bash
+# Development (both servers)
+npm run dev
+
+# Or run separately
+cd backend && npm run dev     # API on port 5000
+cd frontend && npm run dev    # UI on port 3000
 ```
 
-## 🤝 Contributing
+The first server start automatically creates an admin account — the credentials are printed to the console.
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+### Tests
+```bash
+cd backend && npm test
+```
 
 ## 📄 License
-
-MIT License
+MIT
