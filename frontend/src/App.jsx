@@ -66,7 +66,7 @@ const HomePage = () => (
             </svg>
           </div>
           <h3 className="text-xl font-semibold mb-2">Support Locals</h3>
-          <p className="text-gray-600">Pay securely with Stripe, schedule contactless pickups, and support home cooks in your community.</p>
+          <p className="text-gray-600">Pay in cash at pickup, schedule contactless pickups, and support home cooks in your community.</p>
         </div>
       </div>
     </div>

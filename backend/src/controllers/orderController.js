@@ -2,14 +2,10 @@ import Order from '../models/Order.js';
 import MealListing from '../models/MealListing.js';
 import User from '../models/User.js';
 
-const CENTS_PER_DOLLAR = 100;
+// All orders are paid in cash when the buyer picks up the meal.
+// No upfront online payment is taken at order time.
 
-const getStripe = async () => {
-  const { Stripe } = await import('stripe');
-  return new Stripe(process.env.STRIPE_SECRET_KEY);
-};
-
-// @desc    Place an order (creates order + Stripe payment intent)
+// @desc    Place an order (no upfront payment — paid in cash at pickup)
 // @route   POST /api/orders
 // @access  Private/Buyer
 export const createOrder = async (req, res) => {
@@ -61,37 +57,10 @@ export const createOrder = async (req, res) => {
       return res.status(409).json({ message: 'This meal just sold out. Please choose another.' });
     }
 
-    // Create Stripe payment intent
-    let paymentIntent = null;
-    try {
-      const stripe = await getStripe();
-      paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(totalPrice * CENTS_PER_DOLLAR),
-        currency: process.env.STRIPE_CURRENCY || 'usd',
-        metadata: {
-          orderId: order._id.toString(),
-          mealTitle: meal.title,
-          buyerEmail: req.user.email,
-        },
-      });
-      order.paymentIntentId = paymentIntent.id;
-      order.paymentStatus = 'pending';
-      await order.save();
-    } catch (stripeError) {
-      console.error('Stripe error:', stripeError);
-      // Order still created; frontend can poll or admin can confirm manually
-      order.paymentStatus = 'failed';
-      await order.save();
-      return res.status(500).json({
-        message: 'Order created but payment could not be initialized. An admin can complete it manually.',
-        data: order,
-      });
-    }
-
     res.status(201).json({
       success: true,
       data: order,
-      clientSecret: paymentIntent ? paymentIntent.client_secret : null,
+      message: 'Order placed. Pay in cash when you pick up your meal.',
     });
   } catch (error) {
     console.error('Create order error:', error);
@@ -179,6 +148,16 @@ export const updateOrderStatus = async (req, res) => {
     }
 
     order.status = status;
+
+    // Payment happens on arrival: once the cook marks the order picked-up,
+    // payment is considered complete (cash on delivery).
+    if (status === 'picked-up') {
+      order.paymentStatus = 'paid';
+    }
+    if (status === 'cancelled' && order.paymentStatus === 'paid') {
+      // Order was cancelled after pickup — flag for admin review; cash refund
+      // must be handled in person, so it stays marked paid but cancelled.
+    }
     if (status === 'cancelled') {
       // Refund portions back to the listing
       await MealListing.updateOne(
@@ -192,50 +171,6 @@ export const updateOrderStatus = async (req, res) => {
   } catch (error) {
     console.error('Update order status error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// @desc    Webhook: Stripe confirms payment -> order confirmed
-// @route   POST /api/orders/webhook/stripe
-// @access  Public (signature verified)
-export const stripeWebhook = async (req, res) => {
-  try {
-    const stripe = await getStripe();
-    const sig = req.headers['stripe-signature'];
-
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET,
-      );
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err.message);
-      return res.status(400).json({ message: 'Webhook signature failed' });
-    }
-
-    if (event.type === 'payment_intent.succeeded') {
-      const paymentIntent = event.data.object;
-      const orderId = paymentIntent.metadata?.orderId;
-      if (orderId) {
-        await Order.findByIdAndUpdate(orderId, {
-          paymentStatus: 'paid',
-          status: 'confirmed',
-        });
-      }
-    } else if (event.type === 'payment_intent.payment_failed') {
-      const paymentIntent = event.data.object;
-      const orderId = paymentIntent.metadata?.orderId;
-      if (orderId) {
-        await Order.findByIdAndUpdate(orderId, { paymentStatus: 'failed' });
-      }
-    }
-
-    res.json({ received: true });
-  } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(500).json({ message: 'Server error' });
   }
 };
 

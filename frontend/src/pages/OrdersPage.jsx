@@ -111,7 +111,7 @@ const OrdersPage = () => {
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-gray-500">Payment:</span>
                       <span className={`font-medium capitalize ${order.paymentStatus === 'paid' ? 'text-green-600' : order.paymentStatus === 'pending' ? 'text-yellow-600' : 'text-red-600'}`}>
-                        {order.paymentStatus}
+                        {order.paymentStatus === 'pending' ? 'pay in cash at pickup' : order.paymentStatus}
                       </span>
                     </div>
 

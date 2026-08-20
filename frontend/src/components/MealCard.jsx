@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loadStripe } from '@stripe/stripe-js';
 import { orderService, chatService } from '../services/api';
 import useAuthStore from '../context/authStore';
 
@@ -42,27 +41,9 @@ const MealCard = ({ meal, onSelect, compact }) => {
         scheduledPickupTime: new Date(scheduledTime).toISOString(),
         specialInstructions: instructions || undefined,
       });
-      if (!res.clientSecret) {
-        // Payment could not be initialized (e.g., Stripe not configured);
-        // the order still exists and an admin can complete it manually
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 4000);
-        return;
-      }
-      // Confirm the Stripe payment on the client
-      const stripePromise = loadStripe();
-      const stripe = await stripePromise;
-      const { error: stripeError } = await stripe.confirmPayment({
-        elements: null,
-        clientSecret: res.clientSecret,
-        redirect: 'if_required',
-      });
-      if (stripeError) {
-        setError(`Payment failed: ${stripeError.message}`);
-      } else {
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 4000);
-      }
+      // Payment happens on arrival — no upfront online payment.
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 4000);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not place the order');
     } finally {
@@ -225,7 +206,7 @@ const MealCard = ({ meal, onSelect, compact }) => {
             💬
           </button>
         </div>
-        <p className="text-xs text-gray-400 text-center">Secure payment via Stripe • Exact address revealed after ordering</p>
+        <p className="text-xs text-gray-400 text-center">Pay in cash when you pick up your meal • Exact address revealed after ordering</p>
       </div>
     </div>
   );

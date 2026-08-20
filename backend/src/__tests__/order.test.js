@@ -41,12 +41,7 @@ jest.unstable_mockModule('../controllers/orderController.js', async () => {
   const User = (await import('../models/User.js')).default;
 
   // Replicate the controller logic with mocked Stripe helper
-  const getStripe = async () => ({
-    paymentIntents: { create: mockCreatePaymentIntent },
-  });
-
-  const CENTS_PER_DOLLAR = 100;
-
+  // Payment is cash on arrival — no Stripe calls happen at order time.
   const createOrder = async (req, res) => {
     const { mealListingId, portions, pickupType, scheduledPickupTime, specialInstructions } = req.body;
     if (!mealListingId || !portions || !pickupType || !scheduledPickupTime) {
@@ -79,15 +74,9 @@ jest.unstable_mockModule('../controllers/orderController.js', async () => {
       await Order.findByIdAndDelete(order._id);
       return res.status(409).json({ message: 'This meal just sold out. Please choose another.' });
     }
-    const paymentIntent = await getStripe().then((s) => s.paymentIntents.create({
-      amount: Math.round(totalPrice * CENTS_PER_DOLLAR),
-      currency: 'usd',
-      metadata: { orderId: order._id.toString() },
-    }));
-    order.paymentIntentId = paymentIntent.id;
     order.paymentStatus = 'pending';
     await order.save();
-    res.status(201).json({ success: true, data: order, clientSecret: paymentIntent.client_secret });
+    res.status(201).json({ success: true, data: order, message: 'Order placed. Pay in cash when you pick up your meal.' });
   };
 
   return { createOrder };
@@ -152,6 +141,14 @@ describe('POST /api/orders (createOrder)', () => {
       { new: true },
     );
     expect(req.res.status).toHaveBeenCalledWith(201);
+    // No Stripe payment intent is created — payment happens on arrival
+    expect(mockCreatePaymentIntent).not.toHaveBeenCalled();
+    expect(req.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        message: expect.stringContaining('cash'),
+      }),
+    );
   });
 
   it('rejects the order when not enough portions are available', async () => {
