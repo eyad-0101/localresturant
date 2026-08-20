@@ -1,11 +1,13 @@
+'use client';
+
+import {useRouter} from "next/navigation";
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { orderService, chatService } from '../services/api';
-import useAuthStore from '../context/authStore';
+import { orderService, chatService } from '../lib/api';
+import useAuthStore from '../lib/authStore';
 
 const MealCard = ({ meal, onSelect, compact }) => {
   const { user, isAuthenticated } = useAuthStore();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [portions, setPortions] = useState(1);
   const [pickupType, setPickupType] = useState(meal.pickupType === 'porch' ? 'porch' : 'handoff');
   const [scheduledTime, setScheduledTime] = useState('');
@@ -19,7 +21,7 @@ const MealCard = ({ meal, onSelect, compact }) => {
   const handleOrder = async (e) => {
     e.stopPropagation();
     if (!isAuthenticated) {
-      navigate('/login');
+      router.push('/login');
       return;
     }
     if (portions > meal.availablePortions) {
@@ -54,12 +56,12 @@ const MealCard = ({ meal, onSelect, compact }) => {
   const startChat = async (e) => {
     e.stopPropagation();
     if (!isAuthenticated) {
-      navigate('/login');
+      router.push('/login');
       return;
     }
     try {
       const res = await chatService.getOrCreatePrivateChat(cookId);
-      navigate(`/chat?id=${res.data._id}`);
+      router.push(`/chat?id=${res.data._id}`);
     } catch (err) {
       setError('Could not open chat');
     }

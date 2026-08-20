@@ -1,5 +1,7 @@
+'use client';
+
 import { useState } from 'react';
-import { useGeolocation } from '../hooks/useGeolocation';
+import { useGeolocation } from '../lib/useGeolocation';
 
 const CUISINE_TYPES = ['Italian', 'Mexican', 'Indian', 'Chinese', 'Thai', 'Mediterranean', 'American', 'Other'];
 const DIETARY_OPTIONS = ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'keto', 'dairy-free'];

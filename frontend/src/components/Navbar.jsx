@@ -1,24 +1,26 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import useAuthStore from '../context/authStore';
-import { chatService } from '../services/api';
+'use client';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
+import useAuthStore from '../lib/authStore';
+import { chatService } from '../lib/api';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const pathname = usePathname();
+  const router = useRouter();
 
   const isCook = user?.cookProfile?.isCook || user?.role === 'cook';
   const isAdmin = user?.role === 'admin';
 
   const handleLogout = () => {
     logout();
-    chatService.socket.disconnect();
-    navigate('/');
+    if (chatService.socket) chatService.socket.disconnect();
+    router.push('/');
   };
 
   const linkClass = (path) =>
     `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-      location.pathname === path
+      pathname === path
         ? 'bg-primary-100 text-primary-600'
         : 'text-gray-600 hover:text-primary-500 hover:bg-gray-50'
     }`;
@@ -28,7 +30,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <span className="text-2xl">🍳</span>
             <span className="text-xl font-bold text-gray-900">
               HomeCook <span className="text-primary-500">Connect</span>
@@ -37,27 +39,27 @@ const Navbar = () => {
 
           {/* Links */}
           <div className="flex items-center gap-1">
-            <Link to="/explore" className={linkClass('/explore')}>
+            <Link href="/explore" className={linkClass('/explore')}>
               Explore
             </Link>
             {isAuthenticated && (
               <>
-                <Link to="/chat" className={linkClass('/chat')}>
+                <Link href="/chat" className={linkClass('/chat')}>
                   Messages
                 </Link>
-                <Link to="/requests" className={linkClass('/requests')}>
+                <Link href="/requests" className={linkClass('/requests')}>
                   Cravings
                 </Link>
-                <Link to="/orders" className={linkClass('/orders')}>
+                <Link href="/orders" className={linkClass('/orders')}>
                   Orders
                 </Link>
                 {isCook && (
-                  <Link to="/dashboard" className={linkClass('/dashboard')}>
+                  <Link href="/dashboard" className={linkClass('/dashboard')}>
                     Dashboard
                   </Link>
                 )}
                 {isAdmin && (
-                  <Link to="/admin" className={linkClass('/admin')}>
+                  <Link href="/admin" className={linkClass('/admin')}>
                     Admin
                   </Link>
                 )}
@@ -69,7 +71,7 @@ const Navbar = () => {
           <div className="flex items-center gap-2">
             {isAuthenticated ? (
               <>
-                <Link to="/profile" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
+                <Link href="/profile" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
                   <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold text-sm">
                     {user?.name?.charAt(0).toUpperCase()}
                   </div>
@@ -84,11 +86,11 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <Link to="/login" className="px-4 py-2 text-sm text-gray-600 hover:text-primary-500 font-medium">
+                <Link href="/login" className="px-4 py-2 text-sm text-gray-600 hover:text-primary-500 font-medium">
                   Login
                 </Link>
                 <Link
-                  to="/register"
+                  href="/register"
                   className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
                   Sign Up

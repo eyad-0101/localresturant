@@ -1,6 +1,6 @@
 # HomeCook Connect - Neighborhood Homemade Food Marketplace
 
-A map-based marketplace connecting home cooks with neighbors who want real homemade food. Buyers browse nearby cooks on an interactive map, order portions securely with Stripe, schedule contactless pickups, chat with cooks in real time, and admins oversee all accounts and conversations.
+A map-based marketplace connecting home cooks with neighbors who want real homemade food. Buyers browse nearby cooks on an interactive map, order portions with **cash on arrival** (payment only when the order arrives), schedule contactless pickups, chat with cooks in real time, and admins oversee all accounts and conversations.
 
 ## 🚀 Features
 
@@ -14,19 +14,18 @@ A map-based marketplace connecting home cooks with neighbors who want real homem
 ### Ordering & Payments
 - **Batch Cooking Model**: Cooks announce batches (e.g., "Lasagna Friday, 12 portions")
 - **Atomic Reservation**: Portions are reserved in the database atomically — concurrent buyers cannot oversell a meal
-- **Stripe Payments**: Payment intents created on the server, confirmed on the client via Stripe Elements; a webhook marks the order paid when Stripe confirms
+- **Cash on Arrival**: No online payment and no upfront charge — the buyer pays only when the order arrives. Cooks mark orders as "picked up / paid on arrival" to complete them.
 - **Preorders**: Time-window-based pickup scheduling (porch pickup or handoff)
 - **Contactless Pickup**: QR-code confirmation, with buyer reviews and cook ratings after completion
-- **Group Orders**: Neighbors combine orders for larger batches
 
 ### Real-Time Chat
 - **Private Chats**: Buyers message any cook directly; conversations are created lazily and deduplicated per pair
 - **All-Chefs Channel**: One shared group channel where anyone can reach all chefs at once
-- **Socket.io**: Instant message delivery across clients
+- **Socket.io**: Instant message delivery across clients, with typing indicators
 
 ### Meal Plans & Cravings
 - **Weekly Meal Plans**: Cooks publish recurring plans; buyers subscribe to weekly drops
-- **Buyer Requests (Cravings)**: Buyers post what they want; cooks browse the public cravings board
+- **Buyer Requests (Cravings)**: Buyers post what they want; cooks browse the public cravings board and respond with offers
 
 ### Admin Panel
 - **Account Management**: Admins create buyer, cook, and admin accounts, and can deactivate or delete users
@@ -35,24 +34,22 @@ A map-based marketplace connecting home cooks with neighbors who want real homem
 ## 📁 Project Structure
 ```
 homecook-connect
-├── frontend/          # React + Vite + TailwindCSS + Leaflet
+├── frontend/          # React + Next.js 14 (App Router) + TailwindCSS + Leaflet
 │   └── src/
-│       ├── components/    # MealCard, MealMap, MealFilters, Navbar
-│       ├── pages/         # Explore, Login, Register, Profile, Orders,
-│       │                  # Dashboard, Requests, Chat, Admin, MealPlans
-│       ├── services/      # Axios API layer + Socket.io chat service
-│       ├── context/       # Zustand auth store
-│       └── hooks/         # useGeolocation
+│       ├── app/           # App Router route folders + layout
+│       ├── components/    # Navbar, MealCard, MealMap, MealFilters, ChatSocket
+│       ├── components/Pages/  # Full page components (Explore, Login, Register,
+│       │                        Profile, Orders, Dashboard, Requests, Chat,
+│       │                        Admin, MealPlans)
+│       └── lib/           # Axios API layer, Socket.io chat wiring, Zustand auth store, useGeolocation
 ├── backend/           # Node.js + Express + MongoDB
 │   └── src/
-│       ├── routes/        # auth, meals, orders, chat, mealPlans,
-│       │                  # requests, admin
-│       ├── models/        # User, MealListing, Order, ChatConversation,
-│       │                  # Message, MealPlan, BuyerRequest
-│       ├── controllers/   # Business logic (Stripe, geo queries)
+│       ├── routes/        # auth, meals, orders, chat, mealPlans, requests, admin
+│       ├── models/        # User, MealListing, Order, ChatConversation, Message, MealPlan, BuyerRequest
+│       ├── controllers/   # Business logic (orders, geo queries)
 │       ├── services/      # Socket.io chat service
 │       ├── middleware/    # Auth, roles, validation
-│       ├── config/        # Database, Stripe
+│       ├── config/        # Database
 │       └── __tests__/     # Jest unit tests
 └── docs/              # Documentation
 ```
@@ -61,8 +58,8 @@ homecook-connect
 
 | Layer | Technologies |
 |---|---|
-| Frontend | React, Vite, TailwindCSS, Leaflet, React Query, Zustand, Socket.io client, Stripe Elements |
-| Backend | Node.js, Express, MongoDB/Mongoose, JWT, Socket.io, Stripe, Express Validator |
+| Frontend | React 18, Next.js 14 (App Router), TailwindCSS, Leaflet, React Query, Zustand, Socket.io client |
+| Backend | Node.js, Express, MongoDB/Mongoose, JWT, Socket.io, Express Validator |
 | Maps | OpenStreetMap tiles via Leaflet (no API key required) |
 | Testing | Jest unit tests for orders and chat |
 
@@ -96,14 +93,12 @@ JWT_SECRET=your-secret-key
 PORT=5000
 ```
 
-Optional (enables the full payment flow):
+The frontend needs at minimum:
 ```
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_CURRENCY=usd
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
 
-Without a Stripe key the app still works — orders are created, and an admin can mark them as paid manually.
+The app uses cash on arrival exclusively — no payment processor keys are required.
 
 ### Run the App
 ```bash
@@ -112,7 +107,10 @@ npm run dev
 
 # Or run separately
 cd backend && npm run dev     # API on port 5000
-cd frontend && npm run dev    # UI on port 3000
+cd frontend && npm run dev    # UI on port 3000 (Next.js dev server)
+
+# Production build of the frontend
+cd frontend && npm run build && npm run start
 ```
 
 The first server start automatically creates an admin account — the credentials are printed to the console.
